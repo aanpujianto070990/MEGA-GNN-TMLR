@@ -1,0 +1,68 @@
+out_dir: /mnt/cagri/exps/results/synthetic_per_neighbor
+metric_best: mae
+metric_agg: argmin
+seed: 42
+wandb:
+  use: True
+  project: synthetic_per_neighbor
+  name: Multi-PNA
+  save_dir: /mnt/cagri/exps/results/synthetic_per_neighbor
+dataset:
+  dir: /mnt/cagri/data
+  format: synthetic_per_neighbor
+  name: per_neighbor_stats
+  synthetic_label_family: A
+  reverse_mp: True
+  add_ports: True
+  task: hetero_node
+  task_type: regression
+  task_entity: node
+  transductive: True
+  node_encoder: True
+  node_encoder_name: Hetero_Raw
+  node_encoder_bn: False
+  edge_encoder: True
+  edge_encoder_name: Hetero_Raw
+  edge_encoder_bn: False
+num_threads: 8
+num_workers: 2
+train:
+  mode: custom
+  sampler: hetero_neighbor
+  neighbor_sizes: [20, 20]
+  add_ego_id: True
+  iter_per_epoch: -1
+  batch_size: 128
+  eval_period: 4
+  ckpt_period: 25
+  persistent_workers: True
+  pin_memory: True
+val:
+  sampler: hetero_neighbor
+  iter_per_epoch: -1
+model:
+  type: MegaGNNModel
+  loss_fun: mse
+gnn:
+  layer_type: PNA
+  act: relu
+  dropout: 0.1
+  input_dropout: 0.0
+  layer_norm: False
+  batch_norm: True
+  edge_updates: True
+  multi_edge_agg: False
+  multi_edge_agg_type: None
+  residual: True
+  layers_mp: 2
+  dim_inner: 64
+  head: hetero_node_per_neighbor
+  layers_post_mp: 2
+optim:
+  batch_accumulation: 1
+  clip_grad_norm: False
+  optimizer: adam
+  weight_decay: 1e-5
+  base_lr: 0.001
+  max_epoch: 200
+  scheduler: None

@@ -1,0 +1,40 @@
+MegaGNN
+Copyright (c) 2026 Cagri Bilgi
+
+This product includes software developed by third parties, as listed below.
+Each component remains subject to its own license.
+
+--------------------------------------------------------------------------------
+GraphGym / PyTorch Geometric
+--------------------------------------------------------------------------------
+
+Files under `MegaGNN/graphgym/` are derived from GraphGym, distributed as part
+of PyTorch Geometric, and have been modified for this project.
+
+    https://github.com/pyg-team/pytorch_geometric
+
+Licensed under the MIT License.
+
+    Copyright (c) 2021 Jiaxuan You
+    Copyright (c) 2020 Jiaxuan You, Rex Ying, Jonathan Gomes Selman
+    Copyright (c) 2020 Matthias Fey <matthias.fey@tu-dortmund.de>
+
+The original license texts are retained alongside the corresponding sources:
+
+    MegaGNN/graphgym/models/LICENSE
+    MegaGNN/graphgym/utils/LICENSE
+    MegaGNN/graphgym/contrib/layer/LICENSE
+
+--------------------------------------------------------------------------------
+GenAgg
+--------------------------------------------------------------------------------
+
+The `genagg/` directory is a vendored copy of GenAgg, used for the learnable
+aggregation experiments.
+
+    https://github.com/Acciorocketships/generalised-aggregation
+
+    Ryan Kortvelesy, Steven Morad, Amanda Prorok.
+    "Generalised f-Mean Aggregation for Graph Neural Networks."
+    37th Conference on Neural Information Processing Systems (NeurIPS), 2023.
+    https://arxiv.org/abs/2306.13826

@@ -1,0 +1,29 @@
+# Compiled Python files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+
+# Compiled C++ extension
+# Build with: cd MegaGNN/cpp && python setup.py build_ext --inplace
+*.so
+build/
+
+# Experiment outputs
+results/
+output/
+wandb/
+artifacts/
+
+# Data
+data/
+
+# Editor / OS / tooling
+.vscode/
+.claude/
+.idea/
+.DS_Store
+
+# Local scratch
+old/
+misc/

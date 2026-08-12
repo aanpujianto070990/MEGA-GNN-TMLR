@@ -1,0 +1,68 @@
+out_dir: /mnt/cagri/exps/results
+metric_best: auc
+seed: 42
+wandb:
+  use: True
+  project: jodie
+  save_dir: /mnt/cagri/exps/results
+  name: jodie-Multi-GINE_wiki may-2026
+dataset:
+  dir: /mnt/cagri/data
+  format: Jodie
+  name: wikipedia
+  reverse_mp: True
+  add_ports: True
+  task: hetero_edge
+  task_type: classification
+  task_entity: ('node', 'to', 'node')
+  transductive: True
+  node_encoder: True
+  node_encoder_name: Hetero_Raw
+  node_encoder_bn: False
+  edge_encoder: True
+  edge_encoder_name: Hetero_Raw
+  edge_encoder_bn: False
+num_threads: 8
+num_workers: 2
+train:
+  mode: custom # custom
+  sampler: link_neighbor
+  neighbor_sizes: [100, 100]
+  add_ego_id: True
+  iter_per_epoch: 256
+  batch_size: 8192
+  eval_period: 1
+  ckpt_period: 25
+  persistent_workers: True
+  pin_memory: True
+val:
+  sampler: link_neighbor
+  iter_per_epoch: -1 # 256 not used at the moment, traverse the entire dataset.
+model:
+  type: MegaGNNModel
+  loss_fun: weighted_cross_entropy
+  loss_fun_weight: [1, 10]
+gnn:
+  layer_type: GINE  # GINE, GenAgg, PNA
+  act: relu
+  dropout: 0.4  # local MP-GNN dropout
+  input_dropout: 0.0
+  layer_norm: False 
+  batch_norm: True 
+  edge_updates: True 
+  multi_edge_agg: False
+  multi_edge_agg_type: None
+  layers_mp: 2
+  dim_inner: 60 # dim_hidden
+  head: default 
+  layers_post_mp: 2
+optim:
+  batch_accumulation: 1
+  clip_grad_norm: True
+  clip_grad_norm_value: 1.0
+  optimizer: adam
+  weight_decay: 5e-5
+  base_lr: 0.001
+  max_epoch: 100
+  scheduler: cosine_with_warmup
+  num_warmup_epochs: 5 

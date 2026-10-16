@@ -13,13 +13,25 @@ from MegaGNN.graphgym.config import cfg
 from MegaGNN.graphgym.register import register_sampler
 
 
-class AddEgoIdsForLinkNeighbor(BaseTransform):
+class InPlaceTransform(BaseTransform):
+    r"""BaseTransform that works with both old and new PyG.
+
+    Newer PyG makes `forward()` abstract and has `__call__()` call it on a
+    shallow copy; older PyG makes `__call__()` abstract. Subclasses implement
+    `forward()`, and `__call__()` applies it directly to the batch, as the
+    original `__call__`-based transforms did.
+    """
+    def __call__(self, data):
+        return self.forward(data)
+
+
+class AddEgoIdsForLinkNeighbor(InPlaceTransform):
     r"""Add IDs to the centre nodes of the batch.
     """
     def __init__(self):
         pass
 
-    def __call__(self, data: Union[Data, HeteroData]):
+    def forward(self, data: Union[Data, HeteroData]):
         x = data.x if not isinstance(data, HeteroData) else data['node'].x
         device = x.device
         ids = torch.zeros((x.shape[0], 1), device=device)
@@ -36,13 +48,13 @@ class AddEgoIdsForLinkNeighbor(BaseTransform):
         return data
     
     
-class AddEgoIdsForNeighbor(BaseTransform):
+class AddEgoIdsForNeighbor(InPlaceTransform):
     r"""Add IDs to the centre nodes of the batch.
     """
     def __init__(self):
         pass
 
-    def __call__(self, data: Union[Data, HeteroData]):
+    def forward(self, data: Union[Data, HeteroData]):
         x = data.x if not isinstance(data, HeteroData) else data['node'].x
         device = x.device
         ids = torch.zeros((x.shape[0], 1), device=device)
@@ -58,13 +70,13 @@ class AddEgoIdsForNeighbor(BaseTransform):
         
         return data
 
-class AddIdentityMatrixEgoIdsForNeighbor(BaseTransform):
+class AddIdentityMatrixEgoIdsForNeighbor(InPlaceTransform):
     r"""Add identity matrix to the centre nodes of the batch.
     """
     def __init__(self):
         pass
 
-    def __call__(self, data: Union[HeteroData]):
+    def forward(self, data: Union[HeteroData]):
         x = data['node'].x
         device = x.device
         batch_size = data['node'].batch_size

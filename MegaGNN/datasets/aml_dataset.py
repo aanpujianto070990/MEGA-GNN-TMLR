@@ -37,9 +37,12 @@ def format_dataset(inPath):
     - rows are stably sorted by Timestamp, as datatable's sort did.
     '''
     outPath = os.path.dirname(inPath) + "/formatted_transactions.csv"
+    formatted = format_transactions(pd.read_csv(inPath, dtype=str))
+    formatted.to_csv(outPath, index=False)
 
-    raw = pd.read_csv(inPath, dtype=str)
 
+def format_transactions(raw):
+    r'''Numeric version of a raw *_Trans.csv read with dtype=str (see `format_dataset`).'''
     def first_seen_ids(*cols):
         # Interleave the columns row by row (row0.col0, row0.col1, row1.col0, ...)
         # so first-appearance order matches the original per-row loop.
@@ -70,9 +73,69 @@ def format_dataset(inPath):
         "Payment Format": raw["Payment Format"].map(paymentFormat),
         "Is Laundering": raw["Is Laundering"].astype(int),
     })
-    formatted = formatted.sort_values(by="Timestamp", kind="stable")
+    return formatted.sort_values(by="Timestamp", kind="stable")
 
-    formatted.to_csv(outPath, index=False)
+
+def causal_delta_t(src, dst, ts):
+    r'''Seconds since the sender last received money, for every transaction.
+
+    For transaction e = (u -> v, t_e): t_e minus the latest t_f over incoming
+    transactions f = (w -> u) with t_f < t_e (strictly earlier, since
+    timestamps have minute resolution and the order within a minute is
+    unknown). -1 if u received nothing before t_e. Uses only the past, so the
+    value is the same whichever split the transaction belongs to.
+
+    Args:
+        src, dst: sender / receiver node ids, one entry per transaction
+        ts: integer timestamps in seconds (>= 0)
+    '''
+    src = np.asarray(src, dtype=np.int64)
+    dst = np.asarray(dst, dtype=np.int64)
+    ts = np.asarray(ts, dtype=np.int64)
+    span = int(ts.max()) + 1
+    # Encode (account, time) as one sortable key; search each sender's own
+    # incoming times for the last one strictly before the transaction.
+    in_keys = np.sort(dst * span + ts)
+    idx = np.searchsorted(in_keys, src * span + ts, side='left') - 1
+    prev = in_keys[np.maximum(idx, 0)]
+    has_prev = (idx >= 0) & (prev // span == src)
+    return np.where(has_prev, ts - prev % span, -1)
+
+
+def daily_split(timestamps, split_per=(0.6, 0.2, 0.2)):
+    r'''Chronological split by whole days, as in Multi-GNN.
+
+    Picks the two day boundaries whose transaction shares are closest to
+    `split_per` (smallest maximum relative error).
+
+    Args:
+        timestamps: tensor of seconds since the first transaction
+    Returns:
+        (train_inds, val_inds, test_inds, split) with split = days per part
+    '''
+    n_days = int(timestamps.max() / (3600 * 24) + 1)
+    daily_inds, daily_trans = [], []
+    for day in range(n_days):
+        l = day * 24 * 3600
+        r = (day + 1) * 24 * 3600
+        day_inds = torch.where((timestamps >= l) & (timestamps < r))[0]
+        daily_inds.append(day_inds)
+        daily_trans.append(day_inds.shape[0])
+
+    d_ts = np.array(daily_trans)
+    split_scores = dict()
+    for i, j in itertools.combinations(range(len(d_ts)), 2):
+        split_totals = [d_ts[:i].sum(), d_ts[i:j].sum(), d_ts[j:].sum()]
+        split_totals_sum = np.sum(split_totals)
+        split_props = [v / split_totals_sum for v in split_totals]
+        split_error = [abs(v - t) / t for v, t in zip(split_props, split_per)]
+        split_scores[(i, j)] = max(split_error)
+
+    i, j = min(split_scores, key=split_scores.get)
+    # Days that make up each part (train, validation, test).
+    split = [list(range(i)), list(range(i, j)), list(range(j, len(d_ts)))]
+    parts = [torch.cat([daily_inds[day] for day in days]) for days in split]
+    return parts[0], parts[1], parts[2], split
 
 
 def ports_with_cpp(graph, permute_ports=False):    
@@ -220,7 +283,10 @@ class AMLDataset(TemporalDataset):
 
     @property
     def processed_file_names(self) -> str:
-        return ['data.pt', 'ports.pt', 'ports_permuted.pt', 'simp_edge_batch.pt', 'simp_edge_batch_with_currency_type.pt', 'currency_type.pt']
+        # The last entry marks caches built with the thesis edge attributes
+        # (edge_id, delta_t); older caches lack it and are rebuilt.
+        return ['data.pt', 'ports.pt', 'ports_permuted.pt', 'simp_edge_batch.pt', 'simp_edge_batch_with_currency_type.pt', 'currency_type.pt',
+                'thesis_attrs_v1.pt']
 
     def process(self):
 
@@ -271,46 +337,17 @@ class AMLDataset(TemporalDataset):
         print(f'number of days and transactions in the data: {n_days} days, {n_samples} transactions')
 
         #data splitting
-        daily_irs, weighted_daily_irs, daily_inds, daily_trans = [], [], [], [] #irs = illicit ratios, inds = indices, trans = transactions
-        for day in range(n_days):
-            l = day * 24 * 3600
-            r = (day + 1) * 24 * 3600
-            day_inds = torch.where((timestamps >= l) & (timestamps < r))[0]
-            daily_irs.append(y[day_inds].float().mean())
-            weighted_daily_irs.append(y[day_inds].float().mean() * day_inds.shape[0] / n_samples)
-            daily_inds.append(day_inds)
-            daily_trans.append(day_inds.shape[0])
-
-        split_per = [0.6, 0.2, 0.2]
-        daily_totals = np.array(daily_trans)
-        d_ts = daily_totals
-        I = list(range(len(d_ts)))
-        split_scores = dict()
-        for i,j in itertools.combinations(I, 2):
-            if j >= i:
-                split_totals = [d_ts[:i].sum(), d_ts[i:j].sum(), d_ts[j:].sum()]
-                split_totals_sum = np.sum(split_totals)
-                split_props = [v/split_totals_sum for v in split_totals]
-                split_error = [abs(v-t)/t for v,t in zip(split_props, split_per)]
-                score = max(split_error) #- (split_totals_sum/total) + 1
-                split_scores[(i,j)] = score
-            else:
-                continue
-
-        i,j = min(split_scores, key=split_scores.get)
-        #split contains a list for each split (train, validation and test) and each list contains the days that are part of the respective split
-        split = [list(range(i)), list(range(i, j)), list(range(j, len(daily_totals)))]
+        train_inds, val_inds, test_inds, split = daily_split(timestamps)
         print(f'Calculate split: {split}')
 
-        #Now, we seperate the transactions based on their indices in the timestamp array
-        split_inds = {k: [] for k in range(3)}
-        for i in range(3):
-            for day in split[i]:
-                split_inds[i].append(daily_inds[day]) #split_inds contains a list for each split (tr,val,te) which contains the indices of each day seperately
-                
-        train_inds = torch.cat(split_inds[0])
-        val_inds = torch.cat(split_inds[1])
-        test_inds = torch.cat(split_inds[2])
+        # Thesis temporal module input: seconds since the sender's previous
+        # incoming transaction (-1 if none). Not part of edge_attr, so models
+        # that do not use it are unaffected.
+        delta_t = torch.from_numpy(causal_delta_t(
+            df_edges['from_id'].to_numpy(), df_edges['to_id'].to_numpy(),
+            df_edges['Timestamp'].to_numpy())).float()
+        print(f'Sender has an earlier incoming transaction: {(delta_t >= 0).float().mean() * 100:.2f}% of transactions')
+
         e_train = train_inds
         e_val = torch.cat([train_inds, val_inds])
         e_test = torch.cat([train_inds, val_inds, test_inds])
@@ -341,10 +378,12 @@ class AMLDataset(TemporalDataset):
             data['node', 'to', 'node'].y = masked_y
             data['node', 'to', 'node'].timestamps = masked_timestamps
             data['node', 'to', 'node'].edge_id = edge_ids[e_mask]
+            data['node', 'to', 'node'].delta_t = delta_t[e_mask]
             data['node', 'to', 'node'].split_mask = index_to_mask(inds, size=masked_edge_index.shape[1])
 
             data['node', 'rev_to', 'node'].edge_index = masked_edge_index.flipud()
             data['node', 'rev_to', 'node'].edge_attr = masked_edge_attr
+            data['node', 'rev_to', 'node'].delta_t = delta_t[e_mask]
             
             # For megagnn
             masked_simp_edge_batch = simp_edge_batch[e_mask]
@@ -370,6 +409,7 @@ class AMLDataset(TemporalDataset):
         torch.save(self.simp_edge_batch_dict, self.processed_paths[3])
         torch.save(self.simp_edge_batch_with_edge_type_dict, self.processed_paths[4])
         torch.save(self.currency_type_dict, self.processed_paths[5])
+        torch.save(['edge_id', 'delta_t'], self.processed_paths[6])
 
     def __repr__(self) -> str:
         return f'AML_Dataset(name={self.name})'

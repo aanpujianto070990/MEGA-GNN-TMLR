@@ -6,6 +6,12 @@
 > `torch.load(..., weights_only=False)` for processed data and checkpoints (needed on `torch>=2.6`),
 > an optional `datatable` import in `jodie_dataset.py`, and removal of an unused `scipy.stats.stats` import.
 > `Pilot_Reproduksi_Kaggle.ipynb` installs everything on Kaggle and reproduces Multi-GIN / MEGA-GIN.
+>
+> Thesis training protocol (`configs/thesis/`, opt-in via `train.test_at_best`; upstream configs behave as before):
+> full-pass epochs (max. 20), validation every epoch, model selection and early stopping on validation F1,
+> a single test evaluation with the best checkpoint, `run_summary.json` (timings, peak GPU memory, coverage)
+> and per-transaction scores (`scores_val.npz`, `scores_test.npz`, with the raw CSV row as `edge_id`).
+> `Uji_Protokol_Tesis_Kaggle.ipynb` runs the seed-1 baselines with this protocol on Kaggle.
 
 ## Setup
 

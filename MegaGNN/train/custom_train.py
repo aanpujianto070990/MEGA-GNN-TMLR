@@ -1,4 +1,6 @@
+import json
 import logging
+import os
 import time
 from typing import List, Optional, Dict, Any, Union, Tuple
 
@@ -82,38 +84,71 @@ def train_epoch(
     scheduler.step()
 
 
+def _seed_edge_info(model: nn.Module, batch) -> Dict[str, torch.Tensor]:
+    """Identifiers of the seed edges the head predicts for, in the head's order.
+
+    Uses the same mask as `HeteroGNNEdgeHead._apply_index`. Seed edges that the
+    neighbour sampler did not include in the batch get no prediction.
+    """
+    task = cfg.dataset.task_entity
+    store = batch[task]
+    inds = getattr(model.post_mp, f'{batch.split}_inds')
+    mask = torch.isin(store.e_id, inds[store.input_id])
+    info = {'e_id': store.e_id[mask], 'timestamp': store.timestamps[mask]}
+    if 'edge_id' in store:
+        info['edge_id'] = store.edge_id[mask]
+    return info
+
+
 @torch.no_grad()
 def eval_epoch(
     logger: CustomLogger,
     loader: DataLoader,
-    model: nn.Module, 
-    split: str
-    ) -> None:
+    model: nn.Module,
+    split: str,
+    collect: bool = False
+    ) -> Optional[Dict[str, np.ndarray]]:
     """Evaluate the model on a dataset.
-    
+
     Args:
         logger: Logger for tracking evaluation statistics
         loader: DataLoader for evaluation data
         model: Neural network model
+        collect: If True, also return per-edge identifiers, labels and scores
+
+    Returns:
+        With `collect`, a dict of arrays (e_id, timestamp, [edge_id,] y, score);
+        otherwise None.
     """
     model.eval()
     time_start = time.time()
-    
+    collected = []
+
     for batch in loader:
         batch.split = split
         batch.to(torch.device(cfg.device))
+        info = _seed_edge_info(model, batch) if collect else None
         pred, true = model(batch)
 
         loss, pred_score = compute_loss(pred, true)
         _true = true.detach().to('cpu', non_blocking=True)
         _pred = pred_score.detach().to('cpu', non_blocking=True)
-        
+        if collect:
+            info = {k: v.cpu() for k, v in info.items()}
+            info['y'] = _true
+            info['score'] = _pred
+            collected.append(info)
+
         logger.update_stats(true=_true,
                             pred=_pred,
                             loss=loss.detach().cpu().item(),
                             lr=0, time_used=time.time() - time_start,
                             params=cfg.params, index=None)
         time_start = time.time()
+
+    if not collect:
+        return None
+    return {k: torch.cat([c[k] for c in collected]).numpy() for k in collected[0]}
 
 
 def setup_wandb(cfg) -> Optional[Any]:
@@ -162,6 +197,9 @@ def custom_train(
         - Configurable evaluation and checkpointing frequencies
         - Support for best model checkpointing
     """
+    if cfg.train.test_at_best:
+        return train_test_at_best(loggers, loaders, model, optimizer, scheduler)
+
     start_epoch = 0
     if cfg.train.auto_resume:
         # We do finetuning here so optimizer and scheduler are not needed to be loaded.
@@ -313,6 +351,134 @@ def custom_train(
         run = None
 
     logging.info('Task done, results saved in %s', cfg.run_dir)
+
+_SCORE_DTYPES = {'e_id': np.int32, 'edge_id': np.int32, 'timestamp': np.int32,
+                 'y': np.int8, 'score': np.float32}
+
+
+def _save_scores(scores: Dict[str, np.ndarray], split: str) -> None:
+    # Compact dtypes keep a test file at a few MB (ids < 2^31, timestamps are
+    # whole seconds well below 2^31, labels are 0/1).
+    scores = {k: v.astype(_SCORE_DTYPES.get(k, v.dtype)) for k, v in scores.items()}
+    np.savez_compressed(os.path.join(cfg.run_dir, f'scores_{split}.npz'), **scores)
+
+
+def train_test_at_best(
+    loggers: List[CustomLogger],
+    loaders: List[DataLoader],
+    model: nn.Module,
+    optimizer: Optimizer,
+    scheduler: _LRScheduler
+) -> None:
+    """Thesis protocol: model selection on validation, a single test evaluation.
+
+    Every `train.eval_period` epochs only the validation split is evaluated.
+    The checkpoint with the best validation `cfg.metric_best` is kept (ties keep
+    the earlier epoch). Training stops after `cfg.optim.max_epoch` epochs, or
+    earlier after `train.early_stop_patience` evaluations without improvement
+    (counted only once the best validation value is > 0). The best checkpoint
+    is then evaluated once on the test split.
+
+    Besides the usual stats.json files, writes `run_summary.json` (best epoch,
+    val/test metrics, timings, peak GPU memory, prediction coverage) and, with
+    `train.save_scores`, per-transaction scores for val (best epoch) and test.
+    """
+    metric = cfg.metric_best
+    patience = cfg.train.early_stop_patience
+    device = torch.device(cfg.device)
+    use_cuda = device.type == 'cuda'
+
+    logging.info(get_model_summary(model, loaders))
+    if use_cuda:
+        torch.cuda.reset_peak_memory_stats(device)
+
+    best_val, best_epoch, best_val_perf, bad_evals = -np.inf, -1, None, 0
+    train_times, val_times = [], []
+    stopped_early = False
+
+    for cur_epoch in range(cfg.optim.max_epoch):
+        t0 = time.perf_counter()
+        train_epoch(loggers[0], loaders[0], model, optimizer, scheduler,
+                    cfg.optim.batch_accumulation)
+        loggers[0].write_epoch(cur_epoch)
+        train_times.append(time.perf_counter() - t0)
+
+        if not is_eval_epoch(cur_epoch, 0):
+            continue
+
+        t0 = time.perf_counter()
+        val_scores = eval_epoch(loggers[1], loaders[1], model, split='val',
+                                collect=cfg.train.save_scores)
+        val_perf = loggers[1].write_epoch(cur_epoch)
+        val_times.append(time.perf_counter() - t0)
+
+        if val_perf[metric] > best_val:
+            best_val, best_epoch, best_val_perf, bad_evals = val_perf[metric], cur_epoch, val_perf, 0
+            save_ckpt(model, optimizer, scheduler, cur_epoch)
+            clean_ckpt()  # keep only the best checkpoint
+            if cfg.train.save_scores:
+                _save_scores(val_scores, 'val')
+        elif best_val > 0:
+            bad_evals += 1
+
+        logging.info(
+            f"> Epoch {cur_epoch}: train {train_times[-1]:.1f}s, val {val_times[-1]:.1f}s | "
+            f"val_{metric}: {val_perf[metric]:.4f} | best: epoch {best_epoch} "
+            f"(val_{metric} {best_val:.4f}) | no improvement: {bad_evals}"
+            + (f"/{patience}" if patience > 0 else ""))
+
+        if patience > 0 and bad_evals >= patience:
+            stopped_early = True
+            logging.info(f"Early stopping at epoch {cur_epoch}")
+            break
+
+    epochs_run = cur_epoch + 1
+
+    # Single test evaluation with the best validation checkpoint.
+    load_ckpt(model, epoch=best_epoch)
+    t0 = time.perf_counter()
+    test_scores = eval_epoch(loggers[2], loaders[2], model, split='test',
+                             collect=cfg.train.save_scores)
+    test_perf = loggers[2].write_epoch(best_epoch)
+    test_time = time.perf_counter() - t0
+    if cfg.train.save_scores:
+        _save_scores(test_scores, 'test')
+
+    head = model.post_mp
+    run_summary = {
+        'seed': cfg.seed,
+        'metric_best': metric,
+        'max_epoch': cfg.optim.max_epoch,
+        'early_stop_patience': patience,
+        'epochs_run': epochs_run,
+        'stopped_early': stopped_early,
+        'best_epoch': best_epoch,
+        'val': best_val_perf,
+        'test': test_perf,
+        'params': cfg.params,
+        'train_epoch_s': train_times,
+        'val_eval_s': val_times,
+        'test_eval_s': test_time,
+        'train_iters_per_epoch': len(loaders[0]),
+        'peak_gpu_mem_allocated_mb': (torch.cuda.max_memory_allocated(device) / 2**20) if use_cuda else None,
+        'peak_gpu_mem_reserved_mb': (torch.cuda.max_memory_reserved(device) / 2**20) if use_cuda else None,
+        'n_seed_edges': {s: int(getattr(head, f'{s}_inds').numel()) for s in ['train', 'val', 'test']},
+        # Test seed edges that got a prediction (the sampler may leave a few out).
+        'n_test_pred_edges': int(len(test_scores['score'])) if test_scores is not None else None,
+    }
+    with open(os.path.join(cfg.run_dir, 'run_summary.json'), 'w') as f:
+        json.dump(run_summary, f, indent=2)
+
+    logging.info(
+        f"Best epoch {best_epoch} of {epochs_run} run"
+        + (" (early stopped)" if stopped_early else "")
+        + f" | val_{metric}: {best_val:.4f} | test_{metric}: {test_perf[metric]:.4f}"
+        + f" | avg train epoch {np.mean(train_times):.1f}s | test eval {test_time:.1f}s")
+
+    for logger in loggers:
+        logger.close()
+    logging.info('Task done, results saved in %s', cfg.run_dir)
+
 
 def get_model_summary(model, loaders):
     """Generate a summary of the model architecture and parameters.

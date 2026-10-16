@@ -241,6 +241,9 @@ class AMLDataset(TemporalDataset):
         df_nodes = pd.DataFrame({'NodeID': np.arange(max_n_id), 'Feature': np.ones(max_n_id)})
         timestamps = torch.Tensor(df_edges['Timestamp'].to_numpy())
         y = torch.LongTensor(df_edges['Is Laundering'].to_numpy())
+        # Row index in the raw *_Trans.csv, to map predictions back to raw
+        # transactions (e.g. to the laundering pattern files).
+        edge_ids = torch.LongTensor(df_edges['EdgeID'].to_numpy())
 
         print(f"Illicit ratio = {sum(y)} / {len(y)} = {sum(y) / len(y) * 100:.2f}%")
         print(f"Number of nodes (holdings doing transcations) = {df_nodes.shape[0]}")
@@ -337,6 +340,7 @@ class AMLDataset(TemporalDataset):
             # We use "y" here so LinkNeighborLoader won't mess up the edge label
             data['node', 'to', 'node'].y = masked_y
             data['node', 'to', 'node'].timestamps = masked_timestamps
+            data['node', 'to', 'node'].edge_id = edge_ids[e_mask]
             data['node', 'to', 'node'].split_mask = index_to_mask(inds, size=masked_edge_index.shape[1])
 
             data['node', 'rev_to', 'node'].edge_index = masked_edge_index.flipud()

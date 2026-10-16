@@ -3,9 +3,14 @@ import sys, os
 import os.path as osp
 import pandas as pd
 import numpy as np
-import datatable as dt
+try:
+    # Only needed to format the raw Jodie files; optional so that importing
+    # MegaGNN (which imports every dataset module) works without datatable.
+    import datatable as dt
+    from datatable import f,join,sort
+except ImportError:
+    dt = None
 from datetime import datetime
-from datatable import f,join,sort
 from collections import defaultdict
 from typing import Callable, List, Optional
 

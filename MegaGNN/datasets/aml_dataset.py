@@ -3,9 +3,7 @@ import sys, os
 import os.path as osp
 import pandas as pd
 import numpy as np
-import datatable as dt
 from datetime import datetime
-from datatable import f,join,sort
 from collections import defaultdict
 from typing import Callable, List, Optional
 
@@ -27,72 +25,54 @@ def z_norm(data):
 def format_dataset(inPath):
     r'''
     Turn text attributed dataset into a dataset only contains numbers.
+
+    Vectorized pandas port of the original row-by-row datatable loop, so the
+    dataset can be built without datatable (no wheels for recent Pythons) and
+    in seconds instead of tens of minutes. Output matches the loop:
+    - currencies, payment formats and accounts get integer ids in order of
+      first appearance, scanning each row's fields in the loop's order
+      (receiving before payment currency, sender before receiver account);
+    - Timestamp is seconds since 10 s before midnight of the first row's day;
+    - amounts are rounded to 6 decimals, as the loop's '%f' formatting did;
+    - rows are stably sorted by Timestamp, as datatable's sort did.
     '''
     outPath = os.path.dirname(inPath) + "/formatted_transactions.csv"
 
-    raw = dt.fread(inPath, columns = dt.str32)
+    raw = pd.read_csv(inPath, dtype=str)
 
-    currency = dict()
-    paymentFormat = dict()
-    bankAcc = dict()
-    account = dict()
+    def first_seen_ids(*cols):
+        # Interleave the columns row by row (row0.col0, row0.col1, row1.col0, ...)
+        # so first-appearance order matches the original per-row loop.
+        order = pd.unique(np.column_stack([c.to_numpy() for c in cols]).ravel())
+        return {v: i for i, v in enumerate(order)}
 
-    def get_dict_val(name, collection):
-        if name in collection:
-            val = collection[name]
-        else:
-            val = len(collection)
-            collection[name] = val
-        return val
+    currency = first_seen_ids(raw["Receiving Currency"], raw["Payment Currency"])
+    paymentFormat = first_seen_ids(raw["Payment Format"])
 
-    header = "EdgeID,from_id,to_id,Timestamp,\
-    Amount Sent,Sent Currency,Amount Received,Received Currency,\
-    Payment Format,Is Laundering\n"
+    # Columns 2 and 4 are the two "Account" columns (sender, receiver).
+    from_acc = raw["From Bank"] + raw.iloc[:, 2]
+    to_acc = raw["To Bank"] + raw.iloc[:, 4]
+    account = first_seen_ids(from_acc, to_acc)
 
-    firstTs = -1
+    timestamps = pd.to_datetime(raw["Timestamp"], format='%Y/%m/%d %H:%M')
+    firstTs = timestamps.iloc[0].normalize() - pd.Timedelta(seconds=10)
+    ts = (timestamps - firstTs) // pd.Timedelta(seconds=1)
 
-    with open(outPath, 'w') as writer:
-        writer.write(header)
-        for i in range(raw.nrows):
-            datetime_object = datetime.strptime(raw[i,"Timestamp"], '%Y/%m/%d %H:%M')
-            ts = datetime_object.timestamp()
-            day = datetime_object.day
-            month = datetime_object.month
-            year = datetime_object.year
-            hour = datetime_object.hour
-            minute = datetime_object.minute
+    formatted = pd.DataFrame({
+        "EdgeID": np.arange(len(raw)),
+        "from_id": from_acc.map(account),
+        "to_id": to_acc.map(account),
+        "Timestamp": ts.astype(np.int64),
+        "Amount Sent": raw["Amount Paid"].astype(float).round(6),
+        "Sent Currency": raw["Payment Currency"].map(currency),
+        "Amount Received": raw["Amount Received"].astype(float).round(6),
+        "Received Currency": raw["Receiving Currency"].map(currency),
+        "Payment Format": raw["Payment Format"].map(paymentFormat),
+        "Is Laundering": raw["Is Laundering"].astype(int),
+    })
+    formatted = formatted.sort_values(by="Timestamp", kind="stable")
 
-            if firstTs == -1:
-                startTime = datetime(year, month, day)
-                firstTs = startTime.timestamp() - 10
-
-            ts = ts - firstTs
-
-            cur1 = get_dict_val(raw[i,"Receiving Currency"], currency)
-            cur2 = get_dict_val(raw[i,"Payment Currency"], currency)
-
-            fmt = get_dict_val(raw[i,"Payment Format"], paymentFormat)
-
-            fromAccIdStr = raw[i,"From Bank"] + raw[i,2]
-            fromId = get_dict_val(fromAccIdStr, account)
-
-            toAccIdStr = raw[i,"To Bank"] + raw[i,4]
-            toId = get_dict_val(toAccIdStr, account)
-
-            amountReceivedOrig = float(raw[i,"Amount Received"])
-            amountPaidOrig = float(raw[i,"Amount Paid"])
-
-            isl = int(raw[i,"Is Laundering"])
-
-            line = '%d,%d,%d,%d,%f,%d,%f,%d,%d,%d\n' % \
-                        (i,fromId,toId,ts,amountPaidOrig,cur2, amountReceivedOrig,cur1,fmt,isl)
-
-            writer.write(line)
-
-    formatted = dt.fread(outPath)
-    formatted = formatted[:,:,sort(3)]
-
-    formatted.to_csv(outPath)
+    formatted.to_csv(outPath, index=False)
 
 
 def ports_with_cpp(graph, permute_ports=False):    
@@ -161,7 +141,7 @@ class AMLDataset(TemporalDataset):
         assert self.name.split('-')[0] in self.dataset_sizes
         assert self.name.split('-')[1] in self.dataset_rates
         super().__init__(root, transform, pre_transform)
-        self.data_dict = torch.load(self.processed_paths[0])
+        self.data_dict = torch.load(self.processed_paths[0], weights_only=False)
         
         if not reverse_mp:
             for split in ['train', 'val', 'test']:
@@ -171,10 +151,10 @@ class AMLDataset(TemporalDataset):
             
             if cfg.dataset.permute_ports:
                 print("Permuted Ports are loaded!")
-                self.ports_dict = torch.load(self.processed_paths[2])
+                self.ports_dict = torch.load(self.processed_paths[2], weights_only=False)
             else:
                 print("Original Ports are loaded!")
-                self.ports_dict = torch.load(self.processed_paths[1])
+                self.ports_dict = torch.load(self.processed_paths[1], weights_only=False)
             
             for split in ['train', 'val', 'test']:
                 if cfg.dataset.fraudgt_ports:
@@ -183,13 +163,13 @@ class AMLDataset(TemporalDataset):
                     self.data_dict[split] = self.add_ports_func(self.data_dict[split], self.ports_dict[split])
         
         if multi_edge_agg:
-            self.simp_edge_batch_dict = torch.load(self.processed_paths[3]) 
+            self.simp_edge_batch_dict = torch.load(self.processed_paths[3], weights_only=False) 
             for split in ['train', 'val', 'test']:
                 for edge_type in self.data_dict[split].edge_types:
                     self.data_dict[split][edge_type].simp_edge_batch = self.simp_edge_batch_dict[split]
         
         if cfg.gnn.layer_type in ['RGCN', 'RGCNE']:
-            self.currency_type_dict = torch.load(self.processed_paths[5])
+            self.currency_type_dict = torch.load(self.processed_paths[5], weights_only=False)
             for split in ['train', 'val', 'test']:
                 for edge_type in self.data_dict[split].edge_types:
                     self.data_dict[split][edge_type].currency_type = self.currency_type_dict[split]
@@ -197,7 +177,7 @@ class AMLDataset(TemporalDataset):
             if multi_edge_agg:
                 # If multi_edge_agg is True, we need to load the simp_edge_batch_with_edge_type_dict since 
                 # simp_edge_batch is computed with edge_types.
-                self.simp_edge_batch_with_edge_type_dict = torch.load(self.processed_paths[4])
+                self.simp_edge_batch_with_edge_type_dict = torch.load(self.processed_paths[4], weights_only=False)
                 for split in ['train', 'val', 'test']:
                     for edge_type in self.data_dict[split].edge_types:
                         self.data_dict[split][edge_type].simp_edge_batch = self.simp_edge_batch_with_edge_type_dict[split]

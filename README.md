@@ -1,5 +1,12 @@
 # MegaGNN
 
+> **Fork for a master's thesis** (temporal module on Multi-GIN+EU and MEGA-GIN, AMLworld HI/LI-Small).
+> Changes vs. upstream so far are compatibility-only (no model or protocol changes):
+> a vectorized pandas `format_dataset` (no `datatable` dependency, same ids and ordering),
+> `torch.load(..., weights_only=False)` for processed data and checkpoints (needed on `torch>=2.6`),
+> an optional `datatable` import in `jodie_dataset.py`, and removal of an unused `scipy.stats.stats` import.
+> `Pilot_Reproduksi_Kaggle.ipynb` installs everything on Kaggle and reproduces Multi-GIN / MEGA-GIN.
+
 ## Setup
 
 - Create a new Conda environment, and activate.

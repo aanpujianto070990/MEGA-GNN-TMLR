@@ -23,6 +23,7 @@ from MegaGNN.graphgym.loss import compute_loss
 from MegaGNN.graphgym.register import register_train
 from MegaGNN.graphgym.utils.epoch import is_ckpt_epoch, is_eval_epoch
 from MegaGNN.graphgym.utils.comp_budget import params_count
+from MegaGNN.layer.temporal import temporal_state
 
 from MegaGNN.utils import make_wandb_name, cfg_to_dict, flatten_dict
 from MegaGNN.logger import CustomLogger
@@ -465,6 +466,10 @@ def train_test_at_best(
         'n_seed_edges': {s: int(getattr(head, f'{s}_inds').numel()) for s in ['train', 'val', 'test']},
         # Test seed edges that got a prediction (the sampler may leave a few out).
         'n_test_pred_edges': int(len(test_scores['score'])) if test_scores is not None else None,
+        'batch_accumulation': cfg.optim.batch_accumulation,
+        # Temporal module settings and learned parameters of the best checkpoint.
+        'temporal': {'encoding': cfg.temporal.encoding, 'decay': cfg.temporal.decay,
+                     **temporal_state(model)},
     }
     with open(os.path.join(cfg.run_dir, 'run_summary.json'), 'w') as f:
         json.dump(run_summary, f, indent=2)

@@ -1,3 +1,5 @@
+from yacs.config import CfgNode as CN
+
 from MegaGNN.graphgym.register import register_config
 
 
@@ -20,3 +22,22 @@ def set_cfg_thesis(cfg):
     # Save per-transaction scores (scores_val.npz at the best epoch and
     # scores_test.npz) in the run directory. Only used with `train.test_at_best`.
     cfg.train.save_scores = False
+
+    # Temporal module (MegaGNN/layer/temporal.py). Input: the edge attribute
+    # `delta_t` = seconds since the sender's previous incoming transaction
+    # (-1 if none), used in days. The defaults switch the module off.
+    cfg.temporal = CN()
+    # Encoding of delta_t added to the edge features: 'none', 'time2vec'
+    # (learned frequencies and phases) or 'sinusoid' (same form and initial
+    # values, frozen).
+    cfg.temporal.encoding = 'none'
+    # Number of periodic components k (the encoding has k + 1 dimensions).
+    cfg.temporal.dim = 8
+    # Shortest / longest initial period of the periodic components, in days.
+    cfg.temporal.min_period_days = 1.0 / 24
+    cfg.temporal.max_period_days = 16.0
+    # Temporal decay: multiply each transaction's message by exp(-lambda * delta_t)
+    # before the first sum aggregation (no normalisation), lambda >= 0 learned.
+    cfg.temporal.decay = False
+    # Initial lambda, per day.
+    cfg.temporal.decay_init = 0.1

@@ -14,6 +14,7 @@ from MegaGNN.graphgym.models.layer import BatchNorm1dNode
 
 from MegaGNN.layer.rgcn_conv import FastRGCNConv
 from MegaGNN.layer.hetero_multiedgeagg import HeteroMultiEdgeAggregator
+from MegaGNN.layer.temporal import DecayGINEConv, TemporalDecay, TemporalEdgeEncoding
 
 from torch_geometric.nn import (HeteroConv, PNAConv, GINEConv)
 from torch_geometric.utils import degree
@@ -79,6 +80,16 @@ class GNNEdgeModel(torch.nn.Module):
         dim_in = self.encoder.dim_in
         dim_h_total = cfg.gnn.dim_inner
 
+        # Thesis temporal module: encoding of delta_t added to edge features.
+        self.temporal_enc = None
+        if cfg.temporal.encoding != 'none':
+            if cfg.temporal.encoding not in ('time2vec', 'sinusoid'):
+                raise ValueError(f"Unknown temporal.encoding {cfg.temporal.encoding}")
+            self.temporal_enc = TemporalEdgeEncoding(
+                self.metadata[1], cfg.gnn.dim_edge, cfg.temporal.dim,
+                learnable=cfg.temporal.encoding == 'time2vec',
+                min_period=cfg.temporal.min_period_days, max_period=cfg.temporal.max_period_days)
+
         # Initialize pre-message passing layers if needed
         if cfg.gnn.layers_pre_mp > 0:
             self.pre_mp = GNNPreMP(
@@ -96,6 +107,8 @@ class GNNEdgeModel(torch.nn.Module):
     def forward(self, batch):
         # Encode features
         batch = self.encoder(batch)
+        if self.temporal_enc is not None:
+            batch = self.temporal_enc(batch)
 
         x_dict = batch.collect('x')
 
@@ -138,6 +151,15 @@ class GNNHelper(torch.nn.Module):
         self.multi_edge_agg = cfg.gnn.multi_edge_agg
         self.multi_edge_agg_type = cfg.gnn.multi_edge_agg_type
         self.layer_type = cfg.gnn.layer_type
+
+        # Thesis temporal decay. With parallel-edge aggregation (MEGA) the
+        # weights scale each transaction before the first (parallel-edge) sum;
+        # otherwise they scale each GINE message before the neighbour sum.
+        self.decay = None
+        if cfg.temporal.decay:
+            if self.layer_type != 'GINE':
+                raise NotImplementedError("temporal.decay is implemented for GINE layers only")
+            self.decay = TemporalDecay(cfg.temporal.decay_init)
 
         # Initialize network components
         self.convs = nn.ModuleList()
@@ -187,7 +209,10 @@ class GNNHelper(torch.nn.Module):
                     nn.ReLU(), 
                     nn.Linear(cfg.gnn.dim_inner, cfg.gnn.dim_inner)
                 )
-            conv = GINEConv(mlp, edge_dim=cfg.gnn.dim_inner)
+            if self.decay is not None and not self.multi_edge_agg:
+                conv = DecayGINEConv(mlp, edge_dim=cfg.gnn.dim_inner)
+            else:
+                conv = GINEConv(mlp, edge_dim=cfg.gnn.dim_inner)
 
         elif cfg.gnn.layer_type == 'GenAgg':
             mlp = nn.Sequential(
@@ -229,6 +254,12 @@ class GNNHelper(torch.nn.Module):
 
         x_dict = batch.collect('x')
 
+        # Per-transaction decay weights; delta_t is per original edge and is not
+        # touched by the parallel-edge aggregation, so it stays aligned.
+        weight_dict = None
+        if self.decay is not None:
+            weight_dict = {et: self.decay(batch[et].delta_t) for et in batch.edge_types}
+
         for i in range(cfg.gnn.layers_mp):
 
             if self.multi_edge_agg:
@@ -238,10 +269,20 @@ class GNNHelper(torch.nn.Module):
                 if self.layer_type in ['RGCN' ,'RGCNE']:
                     prev_currency_type_dict = {edge_type: batch[edge_type].currency_type for edge_type in batch.edge_types}
 
-                batch = self.edge_aggrs[i](batch) 
+                if weight_dict is not None:
+                    # Weight each parallel edge before it is summed into its
+                    # (src, dst) group; the unweighted features stay in
+                    # prev_edge_attr_dict for the edge update below.
+                    for edge_type in batch.edge_types:
+                        batch[edge_type].edge_attr = prev_edge_attr_dict[edge_type] * weight_dict[edge_type].unsqueeze(-1)
 
-            if self.layer_type == 'RGCN' or self.layer_type == 'RGCNE': 
+                batch = self.edge_aggrs[i](batch)
+
+            if self.layer_type == 'RGCN' or self.layer_type == 'RGCNE':
                 x_dict_new = self.convs[i](x_dict, batch.edge_index_dict, batch.edge_attr_dict, batch.currency_type_dict)
+            elif weight_dict is not None and not self.multi_edge_agg:
+                x_dict_new = self.convs[i](x_dict, batch.edge_index_dict, batch.edge_attr_dict,
+                                           edge_weight_dict=weight_dict)
             else:
                 x_dict_new = self.convs[i](x_dict, batch.edge_index_dict, batch.edge_attr_dict)
 

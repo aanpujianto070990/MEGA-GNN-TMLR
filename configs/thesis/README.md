@@ -1,7 +1,9 @@
 # Thesis configurations
 
 Base configs: `AML-Small-{HI,LI}-{Multi,MEGA}-GIN.yaml` (paper model and optimizer
-settings, thesis training protocol). The experiment configurations are the base
+settings including batch_accumulation 4, thesis training protocol: HI at most 20
+epochs with early-stopping patience 5, LI at most 40 epochs with patience 8, because
+in the pilot both LI baselines were still improving after 20 epochs). The experiment configurations are the base
 config plus command-line overrides of `cfg.temporal` (MegaGNN/config/thesis_config.py,
 MegaGNN/layer/temporal.py):
 

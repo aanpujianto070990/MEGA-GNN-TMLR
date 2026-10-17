@@ -1,7 +1,8 @@
 # Thesis protocol, derived from configs/GIN/AML-Small-LI-MEGA-GIN.yaml (model and optimizer settings unchanged):
 # - one epoch = one full pass over the training seed edges (train.iter_per_epoch -1),
-#   at most 20 epochs, validation evaluated every epoch;
-# - model selection on validation F1, early stopping after 5 evaluations without
+#   at most 40 epochs (LI needs longer than HI: in the pilot, 20 epochs left both
+#   backbones still improving), validation evaluated every epoch;
+# - model selection on validation F1, early stopping after 8 evaluations without
 #   improvement, test evaluated once with the best checkpoint;
 # - per-transaction scores saved for val (best epoch) and test.
 # Seeds 1-10 are passed on the command line (seed <n>); out_dir and dataset.dir too.
@@ -39,7 +40,7 @@ train:
   batch_size: 2048
   eval_period: 1
   test_at_best: True
-  early_stop_patience: 5
+  early_stop_patience: 8
   save_scores: True
   ckpt_period: 25
   persistent_workers: True
@@ -72,6 +73,6 @@ optim:
   optimizer: adam
   weight_decay: 1e-5
   base_lr: 0.003
-  max_epoch: 20
+  max_epoch: 40
   scheduler: None
   num_warmup_epochs: 5 

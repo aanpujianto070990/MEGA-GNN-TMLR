@@ -11,7 +11,9 @@
 > full-pass epochs (max. 20), validation every epoch, model selection and early stopping on validation F1,
 > a single test evaluation with the best checkpoint, `run_summary.json` (timings, peak GPU memory, coverage)
 > and per-transaction scores (`scores_val.npz`, `scores_test.npz`, with the raw CSV row as `edge_id`).
-> `Uji_Protokol_Tesis_Kaggle.ipynb` runs the seed-1 baselines with this protocol on Kaggle.
+> `Uji_Protokol_Tesis_Kaggle.ipynb` runs the seed-1 baselines with this protocol on Kaggle;
+> `Eksperimen_Utama_Kaggle.ipynb` runs the 110-run main experiment (see `configs/thesis/README.md`)
+> two at a time on Kaggle T4 x2, resuming across sessions.
 
 ## Setup
 

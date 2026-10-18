@@ -104,20 +104,28 @@ class TemporalDecay(nn.Module):
 
 class DecayGINEConv(GINEConv):
     """GINEConv whose messages ReLU(x_j + e_ji) are multiplied by an optional
-    per-edge weight before the sum aggregation."""
+    per-edge weight before the sum aggregation.
+
+    Reuses GINEConv's parameters (nn, eps, edge projection) but computes the
+    messages and the sum directly instead of through `propagate()`: recent PyG
+    versions generate `propagate()` from GINEConv's own message signature, and
+    a subclass inherits that version, which rejects the extra `edge_weight`.
+    With `edge_weight=None` the result equals GINEConv's.
+    """
 
     def forward(self, x, edge_index, edge_attr=None, edge_weight: Optional[Tensor] = None, size=None):
-        if isinstance(x, Tensor):
-            x = (x, x)
-        out = self.propagate(edge_index, x=x, edge_attr=edge_attr, edge_weight=edge_weight, size=size)
-        x_r = x[1]
-        if x_r is not None:
-            out = out + (1 + self.eps) * x_r
+        x_src, x_dst = (x, x) if isinstance(x, Tensor) else x
+        src, dst = edge_index
+        if self.lin is not None:
+            edge_attr = self.lin(edge_attr)
+        msg = (x_src[src] + edge_attr).relu()
+        if edge_weight is not None:
+            msg = msg * edge_weight.view(-1, 1)
+        n_dst = x_dst.size(0) if x_dst is not None else (size[1] if size is not None else x_src.size(0))
+        out = msg.new_zeros(n_dst, msg.size(-1)).index_add_(0, dst, msg)
+        if x_dst is not None:
+            out = out + (1 + self.eps) * x_dst
         return self.nn(out)
-
-    def message(self, x_j: Tensor, edge_attr: Tensor, edge_weight: Optional[Tensor] = None) -> Tensor:
-        msg = super().message(x_j, edge_attr)
-        return msg if edge_weight is None else msg * edge_weight.view(-1, 1)
 
 
 def temporal_state(model: nn.Module) -> Dict:

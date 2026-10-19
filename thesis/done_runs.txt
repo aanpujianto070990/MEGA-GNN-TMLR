@@ -1,3 +1,10 @@
 # Runs of the main experiment that are already finished (results kept outside Kaggle).
 # One run per line: dataset,model,config,seed   e.g.  Small-LI,Multi-GIN,full,3
 # Eksperimen_Utama_Kaggle.ipynb skips these runs.
+# sesi 1 (2026-10-19): hasil_kaggle/results_main_sesi1
+Small-LI,Multi-GIN,base,1
+Small-LI,Multi-GIN,full,1
+Small-LI,MEGA-GIN,base,1
+Small-HI,Multi-GIN,base,1
+Small-HI,Multi-GIN,full,1
+Small-HI,MEGA-GIN,base,1

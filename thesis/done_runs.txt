@@ -1,15 +1,18 @@
 # Runs of the main experiment that are already finished (results kept outside Kaggle).
 # One run per line: dataset,model,config,seed   e.g.  Small-LI,Multi-GIN,full,3
 # Eksperimen_Utama_Kaggle.ipynb skips these runs.
+#
+# Superseded (2026-10-20): the time-encoding projection is now zero-initialised
+# (temporal.proj_init zero). These runs used the old default init and are re-run;
+# their old results in sesi 1 / sesi 2 must not be used in the analysis:
+#   Small-LI,Multi-GIN,full,1   Small-HI,Multi-GIN,full,1   (sesi 1)
+#   Small-HI,MEGA-GIN,full,1    Small-HI,Multi-GIN,full,2   (sesi 2)
+#
 # sesi 1 (2026-10-19): hasil_kaggle/results_main_sesi1
 Small-LI,Multi-GIN,base,1
-Small-LI,Multi-GIN,full,1
 Small-LI,MEGA-GIN,base,1
 Small-HI,Multi-GIN,base,1
-Small-HI,Multi-GIN,full,1
 Small-HI,MEGA-GIN,base,1
 # sesi 2 (2026-10-20, budget 4.5 jam): hasil_kaggle/results_main_sesi2
-Small-HI,MEGA-GIN,full,1
 Small-HI,Multi-GIN,base,2
-Small-HI,Multi-GIN,full,2
 Small-HI,MEGA-GIN,base,2

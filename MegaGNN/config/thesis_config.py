@@ -33,6 +33,10 @@ def set_cfg_thesis(cfg):
     cfg.temporal.encoding = 'none'
     # Number of periodic components k (the encoding has k + 1 dimensions).
     cfg.temporal.dim = 8
+    # Initialisation of the projection of the encoding onto the edge features:
+    # 'zero' (the model starts identical to the backbone) or 'default'
+    # (PyTorch's Linear init; used by the first four runs, see thesis/done_runs.txt).
+    cfg.temporal.proj_init = 'zero'
     # Shortest / longest initial period of the periodic components, in days.
     cfg.temporal.min_period_days = 1.0 / 24
     cfg.temporal.max_period_days = 16.0

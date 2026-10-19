@@ -64,15 +64,25 @@ class TemporalEdgeEncoding(nn.Module):
     concatenating the time features to the raw edge features before it.
     One projection per edge type (forward and reverse edges), like the edge
     encoder itself.
+
+    With `zero_init` the projections start at zero, so the model starts out
+    identical to the backbone and learns to use the time features gradually.
+    Without it, the unbounded linear Time2Vec term (delta_t up to ~18 days)
+    perturbed the normalised edge features from the first step, and Multi-GIN
+    needed many more epochs before it started to learn.
     """
 
     def __init__(self, edge_types, dim_out: int, k: int, learnable: bool,
-                 min_period: float, max_period: float):
+                 min_period: float, max_period: float, zero_init: bool = True):
         super().__init__()
         self.time_enc = TimeEncoder(k, learnable, min_period, max_period)
         self.proj = nn.ModuleDict({
             '__'.join(et): nn.Linear(self.time_enc.out_dim + 1, dim_out) for et in edge_types
         })
+        if zero_init:
+            for lin in self.proj.values():
+                nn.init.zeros_(lin.weight)
+                nn.init.zeros_(lin.bias)
 
     def forward(self, batch):
         for et in batch.edge_types:

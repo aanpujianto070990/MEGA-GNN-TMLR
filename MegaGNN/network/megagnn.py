@@ -88,7 +88,8 @@ class GNNEdgeModel(torch.nn.Module):
             self.temporal_enc = TemporalEdgeEncoding(
                 self.metadata[1], cfg.gnn.dim_edge, cfg.temporal.dim,
                 learnable=cfg.temporal.encoding == 'time2vec',
-                min_period=cfg.temporal.min_period_days, max_period=cfg.temporal.max_period_days)
+                min_period=cfg.temporal.min_period_days, max_period=cfg.temporal.max_period_days,
+                zero_init=cfg.temporal.proj_init == 'zero')
 
         # Initialize pre-message passing layers if needed
         if cfg.gnn.layers_pre_mp > 0:

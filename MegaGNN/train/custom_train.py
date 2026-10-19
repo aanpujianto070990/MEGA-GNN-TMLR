@@ -469,7 +469,7 @@ def train_test_at_best(
         'batch_accumulation': cfg.optim.batch_accumulation,
         # Temporal module settings and learned parameters of the best checkpoint.
         'temporal': {'encoding': cfg.temporal.encoding, 'decay': cfg.temporal.decay,
-                     **temporal_state(model)},
+                     'proj_init': cfg.temporal.proj_init, **temporal_state(model)},
     }
     with open(os.path.join(cfg.run_dir, 'run_summary.json'), 'w') as f:
         json.dump(run_summary, f, indent=2)

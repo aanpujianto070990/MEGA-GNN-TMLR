@@ -9,11 +9,11 @@ MegaGNN/layer/temporal.py):
 
 | Configuration | Overrides | Backbones | Seeds |
 |---|---|---|---|
-| baseline | (none) | Multi-GIN, MEGA-GIN | 1-10 |
+| baseline | (none) | Multi-GIN | 1-10 |
 | + Time2Vec | `temporal.encoding time2vec` | Multi-GIN | 1-5 |
 | + fixed sinusoid | `temporal.encoding sinusoid` | Multi-GIN | 1-5 |
 | + decay | `temporal.decay True` | Multi-GIN | 1-5 |
-| full (Time2Vec + decay) | `temporal.encoding time2vec temporal.decay True` | Multi-GIN, MEGA-GIN | 1-10 |
+| full (Time2Vec + decay) | `temporal.encoding time2vec temporal.decay True` | Multi-GIN | 1-10 |
 
 Example:
 
@@ -34,3 +34,8 @@ transaction (strictly earlier; -1 if none), used in days:
   (Multi-GIN) or each parallel edge before the parallel-edge sum (MEGA-GIN).
 
 `run_summary.json` records the learned lambda and Time2Vec periods.
+
+Main experiment (supervisor decision 2026-10-21): backbone **Multi-GIN+EU only**,
+2 datasets x (10 + 10 + 5 + 5 + 5) = 70 runs; the run list is `thesis/plan.py`.
+The MEGA-GIN configs stay in this folder (and the decay path for parallel-edge
+aggregation stays in the code), but MEGA-GIN is not part of the main experiment.

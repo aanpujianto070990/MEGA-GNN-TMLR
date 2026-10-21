@@ -1,6 +1,7 @@
 # Runs of the main experiment that are already finished (results kept outside Kaggle).
 # One run per line: dataset,model,config,seed   e.g.  Small-LI,Multi-GIN,full,3
-# Eksperimen_Utama_Kaggle.ipynb skips these runs.
+# Eksperimen_Utama_Kaggle.ipynb skips these runs. MEGA-GIN lines are kept for the record;
+# MEGA-GIN is no longer part of the plan (thesis/plan.py, 2026-10-21).
 #
 # Superseded (2026-10-20): the time-encoding projection is now zero-initialised
 # (temporal.proj_init zero). These runs used the old default init and are re-run;

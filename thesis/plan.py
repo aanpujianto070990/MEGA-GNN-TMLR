@@ -31,18 +31,32 @@ ABLATION_CONFIGS, ABLATION_SEEDS = ["t2v", "sin", "decay"], range(1, 6)
 EST_H = {"Small-HI": 2.2, "Small-LI": 6.3}
 
 
+# Datasets whose ablation runs go first (decision 2026-10-26). After session 3 the
+# full configuration started learning several epochs later than the baseline
+# even with the zero-initialised encoding projection; the HI ablations (cheap,
+# ~2 h each) separate the encoding from the decay component.
+ABLATIONS_FIRST = ["Small-HI"]
+
+
 def build_plan():
     """Ordered list of runs (dataset, model, config, seed).
 
-    Wave 1: baseline and full, per seed, LI then HI (pairs complete early).
-    Wave 2: ablations, per seed, LI then HI.
+    0. Ablations of the datasets in ABLATIONS_FIRST, per seed.
+    1. Baseline and full, per seed, LI then HI (pairs complete early).
+    2. Remaining ablations, per seed.
     """
     plan = []
+    for ds in ABLATIONS_FIRST:
+        for seed in ABLATION_SEEDS:
+            for cfg in ABLATION_CONFIGS:
+                plan.append((ds, BACKBONE, cfg, seed))
     for ds in DATASETS:
         for seed in MAIN_SEEDS:
             for cfg in MAIN_CONFIGS:
                 plan.append((ds, BACKBONE, cfg, seed))
     for ds in DATASETS:
+        if ds in ABLATIONS_FIRST:
+            continue
         for seed in ABLATION_SEEDS:
             for cfg in ABLATION_CONFIGS:
                 plan.append((ds, BACKBONE, cfg, seed))

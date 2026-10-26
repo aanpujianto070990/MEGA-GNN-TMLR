@@ -25,3 +25,14 @@ Small-HI,Multi-GIN,full,1
 Small-HI,Multi-GIN,full,2
 Small-HI,Multi-GIN,base,3
 Small-HI,Multi-GIN,full,3
+# sesi 4 (2026-10-27): hasil_kaggle/results_main_sesi4 (HI ablations)
+Small-HI,Multi-GIN,t2v,1
+Small-HI,Multi-GIN,sin,1
+Small-HI,Multi-GIN,decay,1
+Small-HI,Multi-GIN,t2v,2
+Small-HI,Multi-GIN,sin,2
+Small-HI,Multi-GIN,decay,2
+Small-HI,Multi-GIN,t2v,3
+Small-HI,Multi-GIN,sin,3
+Small-HI,Multi-GIN,decay,3
+Small-HI,Multi-GIN,t2v,4

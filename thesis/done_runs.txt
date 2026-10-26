@@ -17,3 +17,11 @@ Small-HI,MEGA-GIN,base,1
 # sesi 2 (2026-10-20, budget 4.5 jam): hasil_kaggle/results_main_sesi2
 Small-HI,Multi-GIN,base,2
 Small-HI,MEGA-GIN,base,2
+# sesi 3 (2026-10-26): hasil_kaggle/results_main_sesi3 (full runs with proj_init zero)
+Small-LI,Multi-GIN,full,1
+Small-LI,Multi-GIN,base,2
+Small-LI,Multi-GIN,full,2
+Small-HI,Multi-GIN,full,1
+Small-HI,Multi-GIN,full,2
+Small-HI,Multi-GIN,base,3
+Small-HI,Multi-GIN,full,3

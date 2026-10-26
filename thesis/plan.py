@@ -37,9 +37,16 @@ EST_H = {"Small-HI": 2.2, "Small-LI": 6.3}
 # ~2 h each) separate the encoding from the decay component.
 ABLATIONS_FIRST = ["Small-HI"]
 
+# Configurations queued in the current phase (None = all). Decision 2026-10-27:
+# the HI ablations showed that the delta_t encoding generalises poorly because
+# delta_t is left-censored by the start of the data in the training period; a
+# delta_t horizon is under discussion with the supervisor. Baselines do not use
+# delta_t, so only they are run until that is decided.
+ACTIVE_CONFIGS = ["base"]
 
-def build_plan():
-    """Ordered list of runs (dataset, model, config, seed).
+
+def full_plan():
+    """All 70 runs (dataset, model, config, seed), in queue order.
 
     0. Ablations of the datasets in ABLATIONS_FIRST, per seed.
     1. Baseline and full, per seed, LI then HI (pairs complete early).
@@ -63,9 +70,16 @@ def build_plan():
     return plan
 
 
+def build_plan():
+    """Runs queued in the current phase (the full plan filtered by ACTIVE_CONFIGS)."""
+    return [k for k in full_plan() if ACTIVE_CONFIGS is None or k[2] in ACTIVE_CONFIGS]
+
+
 def estimate_hours(key):
     return EST_H[key[0]]
 
 
-N_RUNS = len(DATASETS) * (len(MAIN_CONFIGS) * len(MAIN_SEEDS) + len(ABLATION_CONFIGS) * len(ABLATION_SEEDS))
-assert len(build_plan()) == N_RUNS == 70
+N_RUNS_TOTAL = len(DATASETS) * (len(MAIN_CONFIGS) * len(MAIN_SEEDS) + len(ABLATION_CONFIGS) * len(ABLATION_SEEDS))
+assert len(set(full_plan())) == len(full_plan()) == N_RUNS_TOTAL == 70
+# Runs in the current phase; the notebook reports progress against this number.
+N_RUNS = len(build_plan())

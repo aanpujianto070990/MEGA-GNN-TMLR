@@ -36,3 +36,10 @@ Small-HI,Multi-GIN,t2v,3
 Small-HI,Multi-GIN,sin,3
 Small-HI,Multi-GIN,decay,3
 Small-HI,Multi-GIN,t2v,4
+# sesi 5 (2026-10-28): hasil_kaggle/results_main_sesi5 (baseline phase)
+Small-LI,Multi-GIN,base,3
+Small-LI,Multi-GIN,base,4
+Small-LI,Multi-GIN,base,5
+Small-LI,Multi-GIN,base,6
+Small-HI,Multi-GIN,base,4
+Small-HI,Multi-GIN,base,5

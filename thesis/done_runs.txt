@@ -43,3 +43,10 @@ Small-LI,Multi-GIN,base,5
 Small-LI,Multi-GIN,base,6
 Small-HI,Multi-GIN,base,4
 Small-HI,Multi-GIN,base,5
+# sesi 6 (2026-10-29): hasil_kaggle/results_main_sesi6 (baseline phase)
+Small-LI,Multi-GIN,base,7
+Small-LI,Multi-GIN,base,8
+Small-HI,Multi-GIN,base,6
+Small-HI,Multi-GIN,base,7
+Small-HI,Multi-GIN,base,8
+Small-HI,Multi-GIN,base,9

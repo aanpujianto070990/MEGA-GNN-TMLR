@@ -50,3 +50,7 @@ Small-HI,Multi-GIN,base,6
 Small-HI,Multi-GIN,base,7
 Small-HI,Multi-GIN,base,8
 Small-HI,Multi-GIN,base,9
+# sesi 7 (2026-10-29): hasil_kaggle/results_main_sesi7 (baseline phase complete, 20/20)
+Small-LI,Multi-GIN,base,9
+Small-LI,Multi-GIN,base,10
+Small-HI,Multi-GIN,base,10

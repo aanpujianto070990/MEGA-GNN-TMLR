@@ -2,12 +2,18 @@
 
 Input is the edge attribute `delta_t`: seconds since the sender of the
 transaction last received money (strictly earlier), -1 if it never did
-(see `causal_delta_t` in MegaGNN/datasets/aml_dataset.py). It is used in days.
+(see `causal_delta_t` in MegaGNN/datasets/aml_dataset.py). It is used in days,
+limited to a horizon H (`cfg.temporal.horizon_days`): delta_t_H = min(delta_t, H),
+and a sender without incoming money in the last H days (including one without
+any history) gets delta_t_H = H and recent flag 0. The training period starts
+with the data, so long delta_t values are cut off there (never above ~6 days)
+but not in the test period; within a short horizon the distribution is
+comparable across splits.
 
 Two independent components, switched on through `cfg.temporal`:
-- an encoding of delta_t (Time2Vec, or the same form with frozen parameters)
-  added to the encoded edge features;
-- a decay weight w = exp(-lambda * delta_t) that multiplies each
+- an encoding of delta_t_H (Time2Vec, or the same form with frozen parameters)
+  plus the recent flag, added to the encoded edge features;
+- a decay weight w = exp(-lambda * delta_t_H) that multiplies each
   transaction's message before the first sum aggregation.
 """
 import math
@@ -21,10 +27,20 @@ from torch_geometric.nn import GINEConv
 SECONDS_PER_DAY = 86400.0
 
 
-def delta_t_days(delta_t: Tensor) -> Tuple[Tensor, Tensor]:
-    """(delta_t in days with missing history set to 0, mask of transactions with history)."""
-    has_prev = delta_t >= 0
-    return delta_t.clamp(min=0) / SECONDS_PER_DAY, has_prev
+def delta_t_days(delta_t: Tensor, horizon: float = 0.0) -> Tuple[Tensor, Tensor]:
+    """(delta_t in days, mask of transactions whose sender received money recently).
+
+    With `horizon` H > 0 (days): delta_t_H = min(delta_t, H); senders without
+    incoming money in the last H days, or without any, get H and mask False.
+    With `horizon` 0 (no horizon, the runs before 2026-10-29): missing history
+    gets 0 and the mask marks transactions with history.
+    """
+    t = delta_t.clamp(min=0) / SECONDS_PER_DAY
+    recent = delta_t >= 0
+    if horizon > 0:
+        recent = recent & (t <= horizon)
+        t = torch.where(recent, t, torch.full_like(t, horizon))
+    return t, recent
 
 
 class TimeEncoder(nn.Module):
@@ -58,7 +74,7 @@ class TimeEncoder(nn.Module):
 
 
 class TemporalEdgeEncoding(nn.Module):
-    """Adds Proj([TimeEncoder(delta_t), has_prev]) to the encoded edge features.
+    """Adds Proj([TimeEncoder(delta_t_H), recent]) to the encoded edge features.
 
     Adding a projection after the linear edge encoder is the same as
     concatenating the time features to the raw edge features before it.
@@ -73,8 +89,10 @@ class TemporalEdgeEncoding(nn.Module):
     """
 
     def __init__(self, edge_types, dim_out: int, k: int, learnable: bool,
-                 min_period: float, max_period: float, zero_init: bool = True):
+                 min_period: float, max_period: float, zero_init: bool = True,
+                 horizon: float = 0.0):
         super().__init__()
+        self.horizon = horizon
         self.time_enc = TimeEncoder(k, learnable, min_period, max_period)
         self.proj = nn.ModuleDict({
             '__'.join(et): nn.Linear(self.time_enc.out_dim + 1, dim_out) for et in edge_types
@@ -86,21 +104,24 @@ class TemporalEdgeEncoding(nn.Module):
 
     def forward(self, batch):
         for et in batch.edge_types:
-            t, has_prev = delta_t_days(batch[et].delta_t)
-            feat = torch.cat([self.time_enc(t), has_prev.float().unsqueeze(-1)], dim=-1)
+            t, recent = delta_t_days(batch[et].delta_t, self.horizon)
+            feat = torch.cat([self.time_enc(t), recent.float().unsqueeze(-1)], dim=-1)
             batch[et].edge_attr = batch[et].edge_attr + self.proj['__'.join(et)](feat)
         return batch
 
 
 class TemporalDecay(nn.Module):
-    """w = exp(-lambda * delta_t[days]) per transaction, lambda = exp(log_lambda) >= 0.
+    """w = exp(-lambda * delta_t_H[days]) per transaction, lambda = exp(log_lambda) >= 0.
 
-    Transactions whose sender has no earlier incoming transaction get w = 1.
+    With a horizon H, senders without incoming money in the last H days
+    (including those without history) get w = exp(-lambda * H), the smallest
+    weight. Without a horizon, senders without history get w = 1.
     At lambda = 0 every weight is 1 and the backbone is recovered.
     """
 
-    def __init__(self, init_lambda: float = 0.1):
+    def __init__(self, init_lambda: float = 0.1, horizon: float = 0.0):
         super().__init__()
+        self.horizon = horizon
         self.log_lambda = nn.Parameter(torch.tensor(math.log(init_lambda)))
 
     @property
@@ -108,8 +129,11 @@ class TemporalDecay(nn.Module):
         return self.log_lambda.exp()
 
     def forward(self, delta_t: Tensor) -> Tensor:
-        t, has_prev = delta_t_days(delta_t)
-        return torch.where(has_prev, torch.exp(-self.lam * t), torch.ones_like(t))
+        t, recent = delta_t_days(delta_t, self.horizon)
+        w = torch.exp(-self.lam * t)
+        if self.horizon > 0:
+            return w
+        return torch.where(recent, w, torch.ones_like(t))
 
 
 class DecayGINEConv(GINEConv):

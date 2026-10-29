@@ -89,7 +89,7 @@ class GNNEdgeModel(torch.nn.Module):
                 self.metadata[1], cfg.gnn.dim_edge, cfg.temporal.dim,
                 learnable=cfg.temporal.encoding == 'time2vec',
                 min_period=cfg.temporal.min_period_days, max_period=cfg.temporal.max_period_days,
-                zero_init=cfg.temporal.proj_init == 'zero')
+                zero_init=cfg.temporal.proj_init == 'zero', horizon=cfg.temporal.horizon_days)
 
         # Initialize pre-message passing layers if needed
         if cfg.gnn.layers_pre_mp > 0:
@@ -160,7 +160,7 @@ class GNNHelper(torch.nn.Module):
         if cfg.temporal.decay:
             if self.layer_type != 'GINE':
                 raise NotImplementedError("temporal.decay is implemented for GINE layers only")
-            self.decay = TemporalDecay(cfg.temporal.decay_init)
+            self.decay = TemporalDecay(cfg.temporal.decay_init, cfg.temporal.horizon_days)
 
         # Initialize network components
         self.convs = nn.ModuleList()

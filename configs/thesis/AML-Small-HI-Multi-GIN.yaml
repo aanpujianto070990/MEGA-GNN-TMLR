@@ -75,3 +75,9 @@ optim:
   max_epoch: 20
   scheduler: None
   num_warmup_epochs: 5 
+temporal:
+  # Settings used when a run switches the module on (temporal.encoding / temporal.decay
+  # on the command line, see thesis/plan.py). delta_t limited to a 2-day horizon
+  # (decision 2026-10-29); Time2Vec periods start between 1 hour and 2 days.
+  horizon_days: 2.0
+  max_period_days: 2.0

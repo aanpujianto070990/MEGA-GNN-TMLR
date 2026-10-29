@@ -39,10 +39,12 @@ ABLATIONS_FIRST = ["Small-HI"]
 
 # Configurations queued in the current phase (None = all). Decision 2026-10-27:
 # the HI ablations showed that the delta_t encoding generalises poorly because
-# delta_t is left-censored by the start of the data in the training period; a
-# delta_t horizon is under discussion with the supervisor. Baselines do not use
-# delta_t, so only they are run until that is decided.
-ACTIVE_CONFIGS = ["base"]
+# delta_t is left-censored by the start of the data in the training period, so
+# only the baselines (which do not use delta_t) were run. Decision 2026-10-29:
+# delta_t is limited to a 2-day horizon (configs/thesis/*.yaml); all baselines
+# are done and every configuration is queued again (the earlier temporal runs
+# are superseded, see done_runs.txt).
+ACTIVE_CONFIGS = None
 
 
 def full_plan():

@@ -37,6 +37,11 @@ def set_cfg_thesis(cfg):
     # 'zero' (the model starts identical to the backbone) or 'default'
     # (PyTorch's Linear init; used by the first four runs, see thesis/done_runs.txt).
     cfg.temporal.proj_init = 'zero'
+    # Horizon H of delta_t, in days (0 = none): delta_t_H = min(delta_t, H), and
+    # senders without incoming money in the last H days (or ever) get H and a
+    # recent flag of 0. The thesis configs use 2 days (decision 2026-10-29);
+    # the runs before that had no horizon.
+    cfg.temporal.horizon_days = 0.0
     # Shortest / longest initial period of the periodic components, in days.
     cfg.temporal.min_period_days = 1.0 / 24
     cfg.temporal.max_period_days = 16.0

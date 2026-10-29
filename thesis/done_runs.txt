@@ -9,6 +9,13 @@
 #   Small-LI,Multi-GIN,full,1   Small-HI,Multi-GIN,full,1   (sesi 1)
 #   Small-HI,MEGA-GIN,full,1    Small-HI,Multi-GIN,full,2   (sesi 2)
 #
+# Superseded (2026-10-29): delta_t is now limited to a 2-day horizon
+# (temporal.horizon_days 2). All encoding / decay runs made before that are re-run;
+# their results in sesi 3 / sesi 4 are kept only as the preliminary analysis:
+#   Small-LI,Multi-GIN,full,1-2                         (sesi 3)
+#   Small-HI,Multi-GIN,full,1-3                         (sesi 3)
+#   Small-HI,Multi-GIN,t2v,1-4  sin,1-3  decay,1-3      (sesi 4)
+#
 # sesi 1 (2026-10-19): hasil_kaggle/results_main_sesi1
 Small-LI,Multi-GIN,base,1
 Small-LI,MEGA-GIN,base,1
@@ -17,25 +24,10 @@ Small-HI,MEGA-GIN,base,1
 # sesi 2 (2026-10-20, budget 4.5 jam): hasil_kaggle/results_main_sesi2
 Small-HI,Multi-GIN,base,2
 Small-HI,MEGA-GIN,base,2
-# sesi 3 (2026-10-26): hasil_kaggle/results_main_sesi3 (full runs with proj_init zero)
-Small-LI,Multi-GIN,full,1
+# sesi 3 (2026-10-26): hasil_kaggle/results_main_sesi3 (its full runs are superseded, see above)
 Small-LI,Multi-GIN,base,2
-Small-LI,Multi-GIN,full,2
-Small-HI,Multi-GIN,full,1
-Small-HI,Multi-GIN,full,2
 Small-HI,Multi-GIN,base,3
-Small-HI,Multi-GIN,full,3
-# sesi 4 (2026-10-27): hasil_kaggle/results_main_sesi4 (HI ablations)
-Small-HI,Multi-GIN,t2v,1
-Small-HI,Multi-GIN,sin,1
-Small-HI,Multi-GIN,decay,1
-Small-HI,Multi-GIN,t2v,2
-Small-HI,Multi-GIN,sin,2
-Small-HI,Multi-GIN,decay,2
-Small-HI,Multi-GIN,t2v,3
-Small-HI,Multi-GIN,sin,3
-Small-HI,Multi-GIN,decay,3
-Small-HI,Multi-GIN,t2v,4
+# sesi 4 (2026-10-27): hasil_kaggle/results_main_sesi4 -- HI ablations, all superseded (see above)
 # sesi 5 (2026-10-28): hasil_kaggle/results_main_sesi5 (baseline phase)
 Small-LI,Multi-GIN,base,3
 Small-LI,Multi-GIN,base,4

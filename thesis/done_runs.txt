@@ -46,3 +46,8 @@ Small-HI,Multi-GIN,base,9
 Small-LI,Multi-GIN,base,9
 Small-LI,Multi-GIN,base,10
 Small-HI,Multi-GIN,base,10
+# sesi 8 (2026-10-31): hasil_kaggle/results_main_sesi8 (first runs with the 2-day horizon)
+Small-HI,Multi-GIN,t2v,1
+Small-HI,Multi-GIN,sin,1
+Small-HI,Multi-GIN,decay,1
+Small-HI,Multi-GIN,t2v,2

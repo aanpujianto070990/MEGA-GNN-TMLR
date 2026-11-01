@@ -51,3 +51,14 @@ Small-HI,Multi-GIN,t2v,1
 Small-HI,Multi-GIN,sin,1
 Small-HI,Multi-GIN,decay,1
 Small-HI,Multi-GIN,t2v,2
+# sesi 9 (2026-11-01): hasil_kaggle/results_main_sesi_9 (HI ablations, 2-day horizon)
+Small-HI,Multi-GIN,sin,2
+Small-HI,Multi-GIN,decay,2
+Small-HI,Multi-GIN,t2v,3
+Small-HI,Multi-GIN,sin,3
+Small-HI,Multi-GIN,decay,3
+Small-HI,Multi-GIN,t2v,4
+Small-HI,Multi-GIN,sin,4
+Small-HI,Multi-GIN,decay,4
+Small-HI,Multi-GIN,t2v,5
+Small-HI,Multi-GIN,sin,5

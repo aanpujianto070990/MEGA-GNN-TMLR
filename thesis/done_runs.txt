@@ -62,3 +62,10 @@ Small-HI,Multi-GIN,sin,4
 Small-HI,Multi-GIN,decay,4
 Small-HI,Multi-GIN,t2v,5
 Small-HI,Multi-GIN,sin,5
+# sesi 10 (2026-11-02): hasil_kaggle/results_main_sesi10 (2-day horizon)
+Small-HI,Multi-GIN,decay,5
+Small-LI,Multi-GIN,full,1
+Small-LI,Multi-GIN,full,2
+Small-HI,Multi-GIN,full,1
+Small-HI,Multi-GIN,full,2
+Small-HI,Multi-GIN,full,3

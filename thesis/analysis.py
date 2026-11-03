@@ -148,9 +148,10 @@ def metrics(y, s, pred, budgets=True):
     f1 = 2 * prec * rec / (prec + rec) if pos and prec + rec > 0 else 0.0
     out = {"n": n, "illicit": pos, "f1": 100 * f1, "precision": 100 * prec, "recall": 100 * rec,
            "ap": 100 * average_precision_score(y, s) if 0 < pos < n else np.nan}
+    # Ties in the score keep the edge_id order (arrays are sorted by edge_id).
     order = np.argsort(-s, kind="stable")
     for tag, frac in BUDGETS.items():
-        k = max(1, int(round(frac * n)))
+        k = max(1, int(np.floor(frac * n + 0.5)))
         out[f"recall_{tag}"] = 100 * y[order[:k]].sum() / pos if budgets and pos else np.nan
     return out
 
@@ -246,7 +247,7 @@ def evaluate_run(key, seed_dir, summary, meta, val_threshold, grid):
     # Laundering patterns (whole test split, illicit transactions only).
     order = np.argsort(-s, kind="stable")
     in_budget = np.zeros(len(s), bool)
-    in_budget[order[:max(1, int(round(BUDGETS["0.5%"] * len(s))))]] = True
+    in_budget[order[:max(1, int(np.floor(BUDGETS["0.5%"] * len(s) + 0.5)))]] = True
     ill = y == 1
     df = pd.DataFrame({"pattern": np.asarray(meta.pattern_names, dtype=object)[meta.pattern[eid][ill]],
                        "attempt": meta.attempt[eid][ill], "alarm": pred[ill], "budget": in_budget[ill]})

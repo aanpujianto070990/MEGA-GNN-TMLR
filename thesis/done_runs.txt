@@ -79,3 +79,11 @@ Small-LI,Multi-GIN,full,7
 Small-LI,Multi-GIN,full,8
 Small-HI,Multi-GIN,full,4
 Small-HI,Multi-GIN,full,5
+# sesi 13 (2026-11-03): hasil_kaggle/results_main_sesi13 (2-day horizon; main comparison complete)
+Small-LI,Multi-GIN,full,9
+Small-LI,Multi-GIN,full,10
+Small-HI,Multi-GIN,full,6
+Small-HI,Multi-GIN,full,7
+Small-HI,Multi-GIN,full,8
+Small-HI,Multi-GIN,full,9
+Small-HI,Multi-GIN,full,10

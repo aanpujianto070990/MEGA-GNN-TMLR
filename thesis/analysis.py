@@ -44,9 +44,12 @@ PERIODS = ["all", "active", "tail"]
 BUDGETS = {"0.1%": 0.001, "0.5%": 0.005}
 RUN_DIR_RE = re.compile(r"AML-(Small-(?:HI|LI))-(Multi-GIN|MEGA-GIN)-(base|full|t2v|sin|decay)-gpu\d+$")
 
-# Paired comparisons (family, configuration, reference). H1 = the confirmatory
-# test of the proposal (full vs baseline, seeds 1-10); the rest are the ablation
-# questions (seeds 1-5). Holm's correction runs per family and metric.
+# Paired comparisons (family, configuration, reference). H1 = full vs baseline
+# (seeds 1-10); the rest are the ablation questions (seeds 1-5). The confirmatory
+# test of hypothesis H1 (proposal, Bab II) is one pre-specified test, full vs
+# baseline on F1 of the active test period of LI-Small: it is not corrected.
+# Every other test is corrected with Holm's method per family and metric.
+CONFIRMATORY = ("H1", "Small-LI", "full vs base", "f1_active")
 COMPARISONS = [
     ("H1", "full", "base"),
     ("ablasi", "t2v", "base"),
@@ -312,9 +315,13 @@ def run_tests(runs, metric_names):
                              "mean_ref": b.loc[seeds, metric].mean(), **paired_test(d)})
     tests = pd.DataFrame(rows)
     if len(tests):
+        key = tests[["family", "dataset", "comparison", "metric"]].apply(tuple, axis=1)
+        tests.insert(0, "confirmatory", key.map(lambda k: k == CONFIRMATORY).astype(bool))
         tests["p_holm"] = np.nan
-        for _, idx in tests.groupby(["family", "metric"]).groups.items():
+        rest = tests[~tests["confirmatory"]]
+        for _, idx in rest.groupby(["family", "metric"]).groups.items():
             tests.loc[idx, "p_holm"] = holm(tests.loc[idx, "p"].to_numpy())
+        tests.loc[tests["confirmatory"], "p_holm"] = tests.loc[tests["confirmatory"], "p"]
     return tests
 
 
@@ -402,8 +409,10 @@ def write_report(runs, summary, tests, patterns, cost, out_dir):
               "`p_min_possible` = p terkecil yang mungkin dengan jumlah pasangan itu (5 pasangan: 0,0625; "
               "10 pasangan: 0,002).", ""]
     if len(tests):
-        cols = ["family", "dataset", "comparison", "metric", "n_pairs", "mean_cfg", "mean_ref", "mean_diff",
-                "wins", "losses", "r_rank_biserial", "p", "p_holm", "p_min_possible"]
+        lines += ["Baris `confirmatory = True` adalah uji konfirmatori H1 (F1 periode aktif LI-Small, satu uji, "
+                  "tanpa koreksi). Semua uji lain dikoreksi Holm per keluarga dan metrik.", ""]
+        cols = ["confirmatory", "family", "dataset", "comparison", "metric", "n_pairs", "mean_cfg", "mean_ref",
+                "mean_diff", "wins", "losses", "r_rank_biserial", "p", "p_holm", "p_min_possible"]
         lines += [md_table(tests[cols], fmt="{:.3f}"), ""]
 
     lines += ["## 4. Per pola pencucian uang (recall pada ambang 0,5, rerata seed)", ""]

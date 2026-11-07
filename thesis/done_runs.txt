@@ -90,3 +90,8 @@ Small-HI,Multi-GIN,full,10
 # sesi 14 (2026-11-04): hasil_kaggle/results_main_sesi14 (2-day horizon; LI ablations)
 Small-LI,Multi-GIN,t2v,1
 Small-LI,Multi-GIN,sin,1
+# sesi 15 (2026-11-08): hasil_kaggle/results_main_sesi15 (2-day horizon; LI ablations)
+Small-LI,Multi-GIN,decay,1
+Small-LI,Multi-GIN,t2v,2
+Small-LI,Multi-GIN,sin,2
+Small-LI,Multi-GIN,decay,2

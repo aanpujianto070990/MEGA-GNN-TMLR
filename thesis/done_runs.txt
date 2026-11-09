@@ -103,3 +103,7 @@ Small-LI,Multi-GIN,decay,3
 Small-LI,Multi-GIN,t2v,4
 Small-LI,Multi-GIN,sin,4
 Small-LI,Multi-GIN,decay,4
+# sesi 18 (2026-11-09): hasil_kaggle/results_main_sesi18 -- the session cloned commit ab02eb3, before
+# sesi 17 was recorded, and re-ran LI t2v/sin/decay seed 4. Rule (fixed before comparing the results):
+# the first finished run of a (dataset, config, seed) counts, i.e. sesi 17; the sesi 18 copies are kept
+# only as a same-seed repeatability check (GPU nondeterminism). No new run is recorded here.

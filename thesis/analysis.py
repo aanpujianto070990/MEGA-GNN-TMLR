@@ -130,12 +130,27 @@ def find_meta(meta_dir, ds):
     sys.exit(f"meta_{ds}.csv(.gz) not found under {meta_dir}; it contains: {found[:20]}")
 
 
+def scores_path(seed_dir, split):
+    """scores_<split>.npz, or the folder it became when an upload extracted it; None if absent."""
+    path = os.path.join(seed_dir, f"scores_{split}.npz")
+    if os.path.isfile(path):
+        return path
+    for folder in (path, path[:-4]):
+        if os.path.isfile(os.path.join(folder, "score.npy")):
+            return folder
+    return None
+
+
 def load_scores(path, meta, split):
     """(edge_id, y, score) of a scores_<split>.npz, one entry per transaction, checked against the metadata."""
-    with np.load(path) as z:
-        eid = z["edge_id"].astype(np.int64)
-        y = z["y"].astype(np.int8)
-        s = z["score"].astype(np.float64)
+    if os.path.isdir(path):
+        arrays = {k: np.load(os.path.join(path, f"{k}.npy")) for k in ("edge_id", "y", "score")}
+    else:
+        with np.load(path) as z:
+            arrays = {k: z[k] for k in ("edge_id", "y", "score")}
+    eid = arrays["edge_id"].astype(np.int64)
+    y = arrays["y"].astype(np.int8)
+    s = arrays["score"].astype(np.float64)
     if s.ndim == 2:  # log-probabilities of two classes
         s = np.exp(s[:, 1])
     eid, first = np.unique(eid, return_index=True)
@@ -223,8 +238,8 @@ def evaluate_run(key, seed_dir, summary, meta, val_threshold, grid):
            "run_hours": (train_s + val_s + float(summary.get("test_eval_s") or 0)) / 3600,
            "peak_gpu_mem_mb": summary.get("peak_gpu_mem_allocated_mb"),
            "test_coverage": np.nan}
-    path = os.path.join(seed_dir, "scores_test.npz")
-    if not os.path.exists(path):
+    path = scores_path(seed_dir, "test")
+    if path is None:
         print(f"WARNING: {key}: no scores_test.npz, only run_summary values")
         return row, [], None
 
@@ -243,8 +258,8 @@ def evaluate_run(key, seed_dir, summary, meta, val_threshold, grid):
               f"({row['summary_test_f1']:.2f})")
 
     if val_threshold:
-        vpath = os.path.join(seed_dir, "scores_val.npz")
-        if os.path.exists(vpath):
+        vpath = scores_path(seed_dir, "val")
+        if vpath is not None:
             _, vy, vs = load_scores(vpath, meta, "val")
             thr, vf1 = best_threshold(vy, vs)
             row["val_threshold"], row["val_f1_at_threshold"] = thr, vf1

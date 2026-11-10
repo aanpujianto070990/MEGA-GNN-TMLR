@@ -119,6 +119,17 @@ class Meta:
         self.attempt = df["attempt"].to_numpy(np.int64)
 
 
+def find_meta(meta_dir, ds):
+    """meta_<ds>.csv.gz, or meta_<ds>.csv when the upload was decompressed (Kaggle
+    extracts archives, .gz files included), searched in meta_dir and below."""
+    for name in (f"meta_{ds}.csv.gz", f"meta_{ds}.csv"):
+        hits = sorted(glob.glob(os.path.join(meta_dir, "**", name), recursive=True))
+        if hits:
+            return hits[0]
+    found = sorted(glob.glob(os.path.join(meta_dir, "**", "*"), recursive=True))
+    sys.exit(f"meta_{ds}.csv(.gz) not found under {meta_dir}; it contains: {found[:20]}")
+
+
 def load_scores(path, meta, split):
     """(edge_id, y, score) of a scores_<split>.npz, one entry per transaction, checked against the metadata."""
     with np.load(path) as z:
@@ -463,7 +474,7 @@ def main():
         keys = sorted(k for k in found if k[0] == ds)
         if not keys:
             continue
-        meta = Meta(os.path.join(args.meta_dir, f"meta_{ds}.csv.gz"))
+        meta = Meta(find_meta(args.meta_dir, ds))
         for key in keys:
             seed_dir, summary = found[key]
             row, p, curve = evaluate_run(key, seed_dir, summary, meta, args.val_threshold, grid)

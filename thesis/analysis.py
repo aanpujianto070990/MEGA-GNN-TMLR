@@ -105,9 +105,12 @@ class Meta:
     """Per-transaction metadata of one dataset, indexed by edge_id (= raw CSV row)."""
 
     def __init__(self, path):
+        with open(path, "rb") as f:   # gzip or plain text, whatever the file name says
+            compression = "gzip" if f.read(2) == b"\x1f\x8b" else None
+        print(f"metadata: {path} ({compression or 'plain csv'})")
         df = pd.read_csv(path, usecols=["edge_id", "is_laundering", "split", "period", "pattern", "attempt"],
                          dtype={"split": "category", "period": "category", "pattern": "category"},
-                         keep_default_na=False)
+                         keep_default_na=False, compression=compression)
         if not np.array_equal(df["edge_id"].to_numpy(), np.arange(len(df))):
             raise ValueError(f"{path}: edge_id is not 0..N-1 in order")
         self.y = df["is_laundering"].to_numpy(np.int8)
@@ -120,14 +123,18 @@ class Meta:
 
 
 def find_meta(meta_dir, ds):
-    """meta_<ds>.csv.gz, or meta_<ds>.csv when the upload was decompressed (Kaggle
-    extracts archives, .gz files included), searched in meta_dir and below."""
-    for name in (f"meta_{ds}.csv.gz", f"meta_{ds}.csv"):
-        hits = sorted(glob.glob(os.path.join(meta_dir, "**", name), recursive=True))
-        if hits:
-            return hits[0]
-    found = sorted(glob.glob(os.path.join(meta_dir, "**", "*"), recursive=True))
-    sys.exit(f"meta_{ds}.csv(.gz) not found under {meta_dir}; it contains: {found[:20]}")
+    """The metadata FILE of a dataset under meta_dir. Kaggle extracts uploads, .gz included,
+    and may turn meta_<ds>.csv.gz into a file meta_<ds>.csv or into a FOLDER of that name
+    holding the file, so every file whose name or parent folder starts with meta_<ds> counts
+    (meta_<ds>.csv.gz first, then meta_<ds>.csv, then anything else)."""
+    stem = f"meta_{ds}"
+    files = [p for p in sorted(glob.glob(os.path.join(meta_dir, "**", "*"), recursive=True)) if os.path.isfile(p)]
+    hits = [p for p in files if any(part.startswith(stem + ".") or part == stem
+                                    for part in os.path.relpath(p, meta_dir).split(os.sep))]
+    if hits:
+        rank = lambda p: (0 if p.endswith(".csv.gz") else 1 if p.endswith(".csv") else 2, len(p))
+        return min(hits, key=rank)
+    sys.exit(f"{stem}.csv(.gz) not found under {meta_dir}; files there: {files[:20]}")
 
 
 def scores_path(seed_dir, split):

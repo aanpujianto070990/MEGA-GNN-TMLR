@@ -110,3 +110,5 @@ Small-LI,Multi-GIN,decay,4
 # sesi 19 (2026-11-09): hasil_kaggle/results_main_sesi19 (2-day horizon; LI ablations; decay s5 did not fit the session)
 Small-LI,Multi-GIN,t2v,5
 Small-LI,Multi-GIN,sin,5
+# sesi 20 (2026-11-10): hasil_kaggle/results_main_sesi20 (2-day horizon; last run, main experiment complete 70/70)
+Small-LI,Multi-GIN,decay,5
